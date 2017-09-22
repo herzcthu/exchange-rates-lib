@@ -8,7 +8,6 @@
 
 namespace Herzcthu\ExchangeRates;
 
-
 use Goutte\Client;
 use Illuminate\Support\Facades\Response;
 
@@ -24,20 +23,28 @@ class CrawlBank
     public function getRates($bank, $type = 'sell')
     {
         $bankname = strtolower($bank);
+        $response = $this->$bankname($type);
+        return Response::json($response);
+    }
+
+    public function getRatesArr($bank, $type = 'sell')
+    {
+        $bankname = strtolower($bank);
         return $this->$bankname($type);
     }
 
-    private function response($type, $rates, $bank = '', $timestamp = false) {
+    private function response($type, $rates, $bank = '', $timestamp = false)
+    {
         $base_info = [
             'status' => 'Success',
             'type' => strtoupper($type),
-            'info' => $bank.' Bank Exchange Rate',
-            'description' => $bank.' Bank Exchange Rate extracted from mcb.com.mm',
-            'timestamp' => $timestamp
+            'info' => $bank . ' Bank Exchange Rate',
+            'description' => $bank . ' Bank Exchange Rate extracted from mcb.com.mm',
+            'timestamp' => $timestamp,
         ];
 
         $response = array_merge($base_info, $rates);
-        return Response::json($response);
+        return $response;
     }
 
     private function cbm($type)
@@ -84,14 +91,14 @@ class CrawlBank
             'USD' => $usdsell,
             'EUR' => $eusell,
             'SGD' => $sgdsell,
-            'MYR' => $myrsell
+            'MYR' => $myrsell,
         ];
 
         $buy_rates['rates'] = [
             'USD' => $usdbuy,
             'EUR' => $eubuy,
             'SGD' => $sgdbuy,
-            'MYR' => $myrbuy
+            'MYR' => $myrbuy,
         ];
         $rate = $type . '_rates';
 
@@ -146,7 +153,6 @@ class CrawlBank
 
         });
 
-
         $bank = 'KBZ';
         $timestamp = strtotime($exrate[0]['timestamp']);
 
@@ -167,7 +173,6 @@ class CrawlBank
                 $buy_rates['rates'][$currency] = $rate;
             }
         }
-
 
         $rate = $type . '_rates';
 
@@ -196,13 +201,13 @@ class CrawlBank
         $sell_rates['rates'] = [
             'USD' => $usdsell,
             'EUR' => $eusell,
-            'SGD' => $sgdsell
+            'SGD' => $sgdsell,
         ];
 
         $buy_rates['rates'] = [
             'USD' => $usdbuy,
             'EUR' => $eubuy,
-            'SGD' => $sgdbuy
+            'SGD' => $sgdbuy,
         ];
         $rate = $type . '_rates';
 
@@ -220,10 +225,10 @@ class CrawlBank
         $buy_rates = [];
         foreach ($agdrates->ExchangeRates as $rates) {
             if ($rates->From == 'KYT') {
-                $buy_rates['rates'][$rates->To] = $rates->Rate;
+                $sell_rates['rates'][$rates->To] = $rates->Rate;
             }
             if ($rates->To == 'KYT') {
-                $sell_rates['rates'][$rates->From] = $rates->Rate;
+                $buy_rates['rates'][$rates->From] = $rates->Rate;
             }
         }
 
@@ -231,7 +236,6 @@ class CrawlBank
 
         return $this->response($type, $$rate, $bank);
     }
-
 
     private function cbbank($type)
     {
@@ -256,13 +260,13 @@ class CrawlBank
         $sell_rates['rates'] = [
             'USD' => $usdsell,
             'EUR' => $eusell,
-            'SGD' => $sgdsell
+            'SGD' => $sgdsell,
         ];
 
         $buy_rates['rates'] = [
             'USD' => $usdbuy,
             'EUR' => $eubuy,
-            'SGD' => $sgdbuy
+            'SGD' => $sgdbuy,
         ];
         $rate = $type . '_rates';
 

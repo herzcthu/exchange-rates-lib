@@ -10,6 +10,7 @@ namespace Herzcthu\ExchangeRates;
 
 use Goutte\Client;
 use Illuminate\Support\Facades\Response;
+use Symfony\Component\DomCrawler\Crawler;
 
 class CrawlBank
 {
@@ -60,8 +61,17 @@ class CrawlBank
     {
 
         $crawler = $this->client->request('GET', 'http://www.mcb.com.mm/');
-        $timestamp = $crawler->filter('tr:nth-child(1)')->text();
-
+        try {
+            $timestamp = $crawler->filter('tr:nth-child(1)')->text();
+        } catch (\InvalidArgumentException $e) {
+            $error_rates['rates'] = [
+                'USD' => 'Error',
+                'EUR' => 'Error',
+                'SGD' => 'Error',
+                'MYR' => 'Error',
+            ];
+            return $error_rates;
+        }
         preg_match('/([0-9]{1,2})[^0-9]*([0-9]{1,2})[^0-9]*([0-9]{4})[^0-9]*/', $timestamp, $matches);
 
         $date = sprintf('%02d', $matches[1]);
@@ -216,7 +226,17 @@ class CrawlBank
 
     private function agd($type)
     {
-        $content = file_get_contents('http://otcservice.agdbank.com.mm/utility/rateinfo?callback=?');
+        try {
+            $content = file_get_contents('http://otcservice.agdbank.com.mm/utility/rateinfo?callback=?');
+        } catch (\ErrorException $e) {
+            $error_rates['rates'] = [
+                'USD' => 'Error',
+                'EUR' => 'Error',
+                'SGD' => 'Error',
+                'MYR' => 'Error',
+            ];
+            return $error_rates;
+        }
         $agdrates = json_decode(substr($content, 2, -2));
 
         $bank = 'AGD';
@@ -280,3 +300,4 @@ class CrawlBank
         return Response::json($response);
     }
 }
+

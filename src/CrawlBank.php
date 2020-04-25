@@ -12,6 +12,8 @@ use Goutte\Client;
 use GuzzleHttp\Exception\ConnectException;
 use Illuminate\Support\Facades\Response;
 use Symfony\Component\DomCrawler\Crawler;
+use JonnyW\PhantomJs\Client as PhantomClient;
+use Illuminate\Support\Facades\Log;
 
 class CrawlBank
 {
@@ -51,7 +53,7 @@ class CrawlBank
 
     private function cbm($type)
     {
-        $content = file_get_contents('http://forex.cbm.gov.mm/api/latest');
+        $content = file_get_contents('https://forex.cbm.gov.mm/api/latest');
 
         $cbm_rate = json_decode($content, true);
 
@@ -80,7 +82,8 @@ class CrawlBank
         }
 
         try {
-            $timestamp = $crawler->filter('tr:nth-child(1)')->text();
+            $timestamp = $crawler->filter('div.rate-title-wrap span')->text();
+            Log::info($timestamp);
         } catch (\InvalidArgumentException $e) {
             $error_rates['sell_rates'] = [
                 'USD' => 'Error',
@@ -106,18 +109,21 @@ class CrawlBank
 
         $timestamp = strtotime($timestamp);
 
-        $usdbuy = $crawler->filter('tr:nth-child(3) td:nth-child(2)')->text();
+        $rate_table = $crawler->filter('div.rate-data-wrap tbody')->text();
+        Log::info($rate_table);
 
-        $usdsell = $crawler->filter('tr:nth-child(3) td:nth-child(3)')->text();
+        $usdbuy = $crawler->filter('div.rate-data-wrap tbody tr:nth-child(1) td:nth-child(2)')->text();
 
-        $eubuy = $crawler->filter('tr:nth-child(4) td:nth-child(2)')->text();
-        $eusell = $crawler->filter('tr:nth-child(4) td:nth-child(3)')->text();
+        $usdsell = $crawler->filter('div.rate-data-wrap tbody tr:nth-child(1) td:nth-child(3)')->text();
 
-        $sgdbuy = $crawler->filter('tr:nth-child(5) td:nth-child(2)')->text();
-        $sgdsell = $crawler->filter('tr:nth-child(5) td:nth-child(3)')->text();
+        $eubuy = $crawler->filter('div.rate-data-wrap tbody tr:nth-child(2) td:nth-child(2)')->text();
+        $eusell = $crawler->filter('div.rate-data-wrap tbody tr:nth-child(2) td:nth-child(3)')->text();
 
-        $myrbuy = $crawler->filter('tr:nth-child(6) td:nth-child(2)')->text();
-        $myrsell = $crawler->filter('tr:nth-child(6) td:nth-child(3)')->text();
+        $sgdbuy = $crawler->filter('div.rate-data-wrap tbody tr:nth-child(3) td:nth-child(2)')->text();
+        $sgdsell = $crawler->filter('div.rate-data-wrap tbody tr:nth-child(3) td:nth-child(3)')->text();
+
+        $myrbuy = $crawler->filter('div.rate-data-wrap tbody tr:nth-child(4) td:nth-child(2)')->text();
+        $myrsell = $crawler->filter('div.rate-data-wrap tbody tr:nth-child(4) td:nth-child(3)')->text();
 
         $sell_rates['sell_rates'] = [
             'USD' => $usdsell,
@@ -171,51 +177,61 @@ class CrawlBank
             return $this->response('error', $error_rates, $bank, false, false);
         }
 
-        $exrate = $crawler->filter('div.row.exchange-rate div')->children()->each(function (Crawler $node, $i) {
+        Log::info($crawler->filter('div')->text());
+
+        preg_match('/(?<=Date – )([0-9]{2}\/[0-9]{2}\/[0-9]{4})/', $crawler->filter('div')->text(), $match);
+        Log::info($match);
+        $timestamp = $match;
+
+        $exrate = $crawler->filter('div.exchange-rate-row ')->children()->each(function (Crawler $node, $i) {
 
             $response = [];
 
-            if (strpos($node->filter('span')->text(), 'EXCHANGE') !== false) {
-                $response['timestamp'] = $node->filter('strong')->text();
+            Log::info($node->text());
+
+//            if (strpos($node->filter('span')->text(), 'EXCHANGE') !== false) {
+//                $response['timestamp'] = $node->filter('strong')->text();
+//            }
+
+            if (strpos($node->filter('strong')->text(), 'USD') !== false) {
+
+                preg_match('/(?<=Buy – )([0-9]+)/', $node->text(), $usdbuy);
+
+                $response['buy']['USD'] = $usdbuy[0];
+
+                preg_match('/(?<=Sell – )([0-9]+)/', $node->text(), $usdsell);
+                $response['sell']['USD'] = $usdsell[0];
             }
 
-            if (strpos($node->filter('span')->text(), 'USD') !== false) {
-                preg_match('/(?<=BUY\s)([0-9]+)/', $node->text(), $buy);
-                $response['buy']['USD'] = $buy[1];
+            if (strpos($node->filter('strong')->text(), 'SGD') !== false) {
+                preg_match('/(?<=Buy – )([0-9]+)/', $node->text(), $sgdbuy);
+                $response['buy']['SGD'] = $sgdbuy[0];
 
-                preg_match('/(?<=SELL\s)([0-9]+)/', $node->text(), $sell);
-                $response['sell']['USD'] = $sell[1];
+                preg_match('/(?<=Sell – )([0-9]+)/', $node->text(), $sgdsell);
+                $response['sell']['SGD'] = $sgdsell[0];
             }
 
-            if (strpos($node->filter('span')->text(), 'SGD') !== false) {
-                preg_match('/(?<=BUY\s)([0-9]+)/', $node->text(), $buy);
-                $response['buy']['SGD'] = $buy[1];
+            if (strpos($node->filter('strong')->text(), 'EUR') !== false) {
+                preg_match('/(?<=Buy – )([0-9]+)/', $node->text(), $eurbuy);
+                $response['buy']['EUR'] = $eurbuy[0];
 
-                preg_match('/(?<=SELL\s)([0-9]+)/', $node->text(), $sell);
-                $response['sell']['SGD'] = $sell[1];
+                preg_match('/(?<=Sell – )([0-9]+)/', $node->text(), $eursell);
+                $response['sell']['EUR'] = $eursell[0];
             }
 
-            if (strpos($node->filter('span')->text(), 'EUR') !== false) {
-                preg_match('/(?<=BUY\s)([0-9]+)/', $node->text(), $buy);
-                $response['buy']['EUR'] = $buy[1];
+            if (strpos($node->filter('strong')->text(), 'THB') !== false) {
+                preg_match('/(?<=Buy – )([0-9]+)/', $node->text(), $thbbuy);
+                $response['buy']['THB'] = $thbbuy[0];
 
-                preg_match('/(?<=SELL\s)([0-9]+)/', $node->text(), $sell);
-                $response['sell']['EUR'] = $sell[1];
-            }
-
-            if (strpos($node->filter('span')->text(), 'THB') !== false) {
-                preg_match('/(?<=BUY\s)([0-9]+)/', $node->text(), $buy);
-                $response['buy']['THB'] = $buy[1];
-
-                preg_match('/(?<=SELL\s)([0-9]+)/', $node->text(), $sell);
-                $response['sell']['THB'] = $sell[1];
+                preg_match('/(?<=Sell – )([0-9]+)/', $node->text(), $thbsell);
+                $response['sell']['THB'] = $thbsell[0];
             }
 
             return $response;
 
         });
 
-        $timestamp = strtotime($exrate[0]['timestamp']);
+        //$timestamp = strtotime($exrate[0]['timestamp']);
 
         $sell_rates = [];
 
@@ -369,9 +385,25 @@ class CrawlBank
     {
         $bank = 'CB';
 
+        $phantomclient = PhantomClient::getInstance();
+        $phantomclient->getEngine()->setPath(base_path('vendor/bin') . '/phantomjs');
+        $phantomclient->isLazy();
+        $request = $phantomclient->getMessageFactory()->createRequest('https://www.cbbank.com.mm/en', 'GET');
+        $response = $phantomclient->getMessageFactory()->createResponse();
+
+        // Send the request
+        $phantomclient->send($request, $response);
+
+        if ($response->getStatus() === 200) {
+
+            // Dump the requested page content
+            $html = $response->getContent();
+            // Log::info($html);
+        }
+
         try {
 
-            $crawler = $this->client->request('GET', 'http://www.cbbank.com.mm/exchange_rate.aspx');
+            $crawler = new Crawler($html);
         } catch (ConnectException $e) {
 
             $error_rates['sell_rates'] = [
@@ -379,39 +411,53 @@ class CrawlBank
                 'EUR' => 'Error',
                 'SGD' => 'Error',
                 'MYR' => 'Error',
+                'THB' => 'Error',
             ];
             $error_rates['buy_rates'] = [
                 'USD' => 'Error',
                 'EUR' => 'Error',
                 'SGD' => 'Error',
                 'MYR' => 'Error',
+                'THB' => 'Error',
             ];
             return $this->response('error', $error_rates, $bank, false, false);
         }
 
-        $timestamp = $crawler->filter('tr:nth-child(7)')->text();
-        $timestamp = strtotime(preg_replace('/[^0-9a-zA-Z]\s+/S', " ", $timestamp));
+        $timestamp = $crawler->filter('div.update-date > span')->text();
+        // $timestamp = strtotime(preg_replace('/[^0-9a-zA-Z]\s+/S', " ", $timestamp));
+        //Log::info($timestamp);
+        $usdbuy = $crawler->filter('div.currency-info:nth-child(2) > div.currency-buy')->text();
+        //Log:info($usdbuy);
+        $usdsell = $crawler->filter('div.currency-info:nth-child(2) > div.currency-sell')->text();
 
-        $usdbuy = $crawler->filter('tr:nth-child(2) td:nth-child(2)')->text();
+        $eubuy = $crawler->filter('div.currency-info:nth-child(3) > div.currency-buy')->text();
+        $eusell = $crawler->filter('div.currency-info:nth-child(3) > div.currency-sell')->text();
 
-        $usdsell = $crawler->filter('tr:nth-child(2) td:nth-child(3)')->text();
+        $sgdbuy = $crawler->filter('div.currency-info:nth-child(4) > div.currency-buy')->text();
+        $sgdsell = $crawler->filter('div.currency-info:nth-child(4) > div.currency-sell')->text();
 
-        $eubuy = $crawler->filter('tr:nth-child(3) td:nth-child(2)')->text();
-        $eusell = $crawler->filter('tr:nth-child(3) td:nth-child(3)')->text();
 
-        $sgdbuy = $crawler->filter('tr:nth-child(4) td:nth-child(2)')->text();
-        $sgdsell = $crawler->filter('tr:nth-child(4) td:nth-child(3)')->text();
+        $thbbuy = $crawler->filter('div.currency-info:nth-child(5) > div.currency-buy')->text();
+        $thbsell = $crawler->filter('div.currency-info:nth-child(5) > div.currency-sell')->text();
+
+        $myrbuy = $crawler->filter('div.currency-info:nth-child(6) > div.currency-buy')->text();
+        $myrsell = $crawler->filter('div.currency-info:nth-child(6) > div.currency-sell')->text();
+
 
         $sell_rates['sell_rates'] = [
             'USD' => $usdsell,
             'EUR' => $eusell,
             'SGD' => $sgdsell,
+            'THB' => $thbsell,
+            'MYR' => $myrsell,
         ];
 
         $buy_rates['buy_rates'] = [
             'USD' => $usdbuy,
             'EUR' => $eubuy,
             'SGD' => $sgdbuy,
+            'THB' => $thbbuy,
+            'MYR' => $myrbuy,
         ];
 
         switch ($type) {

@@ -19,6 +19,23 @@ class CrawlBank
 {
     protected $client;
 
+    protected $error_rates = [
+        'sell_rates' => [
+            'USD' => 'Error',
+            'EUR' => 'Error',
+            'SGD' => 'Error',
+            'MYR' => 'Error',
+            'THB' => 'Error',
+        ],
+        'buy_rates' => [
+            'USD' => 'Error',
+            'EUR' => 'Error',
+            'SGD' => 'Error',
+            'MYR' => 'Error',
+            'THB' => 'Error',
+        ]
+    ];
+
     public function __construct(Client $client)
     {
         $this->client = $client;
@@ -66,19 +83,7 @@ class CrawlBank
         try {
             $crawler = $this->client->request('GET', 'http://www.mcb.com.mm/');
         } catch (ConnectException $e) {
-            $error_rates['sell_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-            ];
-            $error_rates['buy_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-            ];
-            return $this->response('error', $error_rates, $bank, false, false);
+            return $this->response('error', $this->error_rates, $bank, false, false);
         }
 
         try {
@@ -161,20 +166,7 @@ class CrawlBank
         try {
             $crawler = $this->client->request('GET', 'https://www.kbzbank.com/en/');
         } catch (ConnectException $e) {
-
-            $error_rates['sell_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-            ];
-            $error_rates['buy_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-            ];
-            return $this->response('error', $error_rates, $bank, false, false);
+            return $this->response('error', $this->error_rates, $bank, false, false);
         }
 
         Log::info($crawler->filter('div')->text());
@@ -274,20 +266,7 @@ class CrawlBank
         try {
             $crawler = $this->client->request('GET', 'http://www.ayabank.com/en_US/');
         } catch (ConnectException $e) {
-
-            $error_rates['sell_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-            ];
-            $error_rates['buy_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-            ];
-            return $this->response('error', $error_rates, $bank, false, false);
+            return $this->response('error', $this->error_rates, $bank, false, false);
         }
 
         $timestamp = $crawler->filter('tr.row-1 td.column-1')->text();
@@ -338,19 +317,7 @@ class CrawlBank
         try {
             $content = file_get_contents('http://otcservice.agdbank.com.mm/utility/rateinfo?callback=?');
         } catch (\ErrorException $e) {
-            $error_rates['sell_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-            ];
-            $error_rates['buy_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-            ];
-            return $this->response('error', $error_rates, $bank, false, false);
+            return $this->response('error', $this->error_rates, $bank, false, false);
         }
         $agdrates = json_decode(substr($content, 2, -2));
 
@@ -405,22 +372,7 @@ class CrawlBank
 
             $crawler = new Crawler($html);
         } catch (ConnectException $e) {
-
-            $error_rates['sell_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-                'THB' => 'Error',
-            ];
-            $error_rates['buy_rates'] = [
-                'USD' => 'Error',
-                'EUR' => 'Error',
-                'SGD' => 'Error',
-                'MYR' => 'Error',
-                'THB' => 'Error',
-            ];
-            return $this->response('error', $error_rates, $bank, false, false);
+            return $this->response('error', $this->error_rates, $bank, false, false);
         }
 
         $timestamp = $crawler->filter('div.update-date > span')->text();
@@ -474,6 +426,62 @@ class CrawlBank
         }
 
         return $this->response($type, $rate, $bank, $timestamp);
+    }
+
+    private function yoma($type) {
+        $bank = 'yoma';
+
+        try {
+            $crawler = $this->client->request('GET', 'https://www.yomabank.com/en/business/rates');
+        } catch (ConnectException $e) {
+            return $this->response('error', $this->error_rates, $bank, false, false);
+        }
+
+        $timestamp = $crawler->filter('span.exrate-date:nth-child(1)')->text();
+
+        $usdbuy = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(1) > td.buyrate')->text();
+        $usdsell = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(1) > td.sellrate')->text();
+
+        $eubuy = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(2) > td.buyrate')->text();
+        $eusell = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(2) > td.sellrate')->text();
+
+        $sgdbuy = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(3) > td.buyrate')->text();
+        $sgdsell = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(3) > td.sellrate')->text();
+
+        $myrbuy = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(5) > td.buyrate')->text();
+        $myrsell = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(5) > td.sellrate')->text();
+
+        $thbbuy = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(6) > td.buyrate')->text();
+        $thbsell = $crawler->filter('div.exratedetailTlb:nth-child(1) tbody tr:nth-child(6) > td.sellrate')->text();
+
+        $sell_rates['sell_rates'] = [
+            'USD' => $usdsell,
+            'EUR' => $eusell,
+            'SGD' => $sgdsell,
+            'MYR' => $myrsell,
+            'THB' => $thbsell,
+        ];
+
+        $buy_rates['buy_rates'] = [
+            'USD' => $usdbuy,
+            'EUR' => $eubuy,
+            'SGD' => $sgdbuy,
+            'MYR' => $myrbuy,
+            'THB' => $thbbuy
+        ];
+
+        switch ($type) {
+            case 'sell':
+                $rate = $sell_rates;
+                break;
+            case 'buy':
+                $rate = $buy_rates;
+                break;
+            default:
+                $rate = array_merge($sell_rates, $buy_rates);
+                $type = 'both';
+                break;
+        }
     }
 
     public function __call($method, $parameters)
